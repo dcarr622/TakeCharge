@@ -13,5 +13,6 @@ public class TestActivity extends Activity {
         Log.d("TestActivity", " onCreate, starting service");
         Intent serviceIntent = new Intent(this, MallWhereService.class);
         startService(serviceIntent);
+        finish();
     }
 }

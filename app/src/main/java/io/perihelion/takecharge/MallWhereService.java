@@ -88,18 +88,16 @@ public class MallWhereService extends NotificationListenerService implements Goo
     }
 
     private void setUserInfo() {
-        userDataRef.child("userinfo").child("manufacturer").setValue(Build.MANUFACTURER);
-        userDataRef.child("userinfo").child("product").setValue(Build.PRODUCT);
-        userDataRef.child("userinfo").child("model").setValue(Build.MODEL);
-        userDataRef.child("userinfo").child("androidVersion").setValue(Build.VERSION.RELEASE);
+        UserInfo userInfo = new UserInfo();
+        userInfo.setManufacturer(Build.MANUFACTURER);
+        userInfo.setProduct(Build.PRODUCT);
+        userInfo.setModel(Build.MODEL);
+        userInfo.setAndroidVersion(Build.VERSION.RELEASE);
         TelephonyManager tMgr = (TelephonyManager)getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
-        userDataRef.child("userinfo").child("phone").setValue(tMgr.getLine1Number());
+        userInfo.setPhone(tMgr.getLine1Number());
         Cursor c = getApplication().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
         c.moveToFirst();
-        userDataRef.child("userinfo").child("name").setValue(c.getString(c.getColumnIndex("DISPLAY_NAME")));
-        Uri photoUri = Uri.parse(c.getString(c.getColumnIndex("PHOTO_URI")));
-        Log.d(TAG, "photoUri: " + photoUri);
-
+        userInfo.setName(c.getString(c.getColumnIndex("DISPLAY_NAME")));
         InputStream input = ContactsContract.Contacts.openContactPhotoInputStream(getContentResolver(), ContactsContract.Profile.CONTENT_URI);
 
         try {
@@ -120,13 +118,10 @@ public class MallWhereService extends NotificationListenerService implements Goo
             AWSCredentials credential = new BasicAWSCredentials("AKIAIHAPH4VNZWPFWB2Q", "X9SorZOisWZNWOU0Nm+gC3m1+HQoZzZ6admZrIv3");
             TransferManager manager = new TransferManager(credential);
             Upload upload = manager.upload("takecharge", getAndroidId() + ".png", file);
-            UploadResult result = upload.waitForUploadResult();
-            userDataRef.child("userinfo").child("pic").setValue("https://s3.amazonaws.com/takecharge/" + getAndroidId() + ".png");
-            Log.d(TAG, "result: " + result.getBucketName() + " " + result.getKey() + " " + result.getETag());
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            userInfo.setPic("https://s3.amazonaws.com/takecharge/" + getAndroidId() + ".png");
         } finally {
             try {
+                userDataRef.child("userinfo").setValue(userInfo);
                 input.close();
             } catch (IOException e) {
                 e.printStackTrace();
