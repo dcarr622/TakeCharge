@@ -98,6 +98,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
             TransferManager manager = new TransferManager(credential);
             Upload upload = manager.upload("takecharge", getAndroidId() + ".png", file);
             UploadResult result = upload.waitForUploadResult();
+            userDataRef.child("userinfo").child("pic").setValue("https://s3.amazonaws.com/takecharge/" + getAndroidId() + ".png");
             Log.d(TAG, "result: " + result.getBucketName() + " " + result.getKey() + " " + result.getETag());
         } catch (InterruptedException e) {
             e.printStackTrace();
