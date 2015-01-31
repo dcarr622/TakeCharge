@@ -1,17 +1,11 @@
 package io.perihelion.takecharge;
 
 import android.content.ContentResolver;
-import android.content.ContentUris;
-import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.Contacts;
 import android.provider.ContactsContract;
-import android.provider.MediaStore;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
@@ -27,9 +21,7 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,19 +74,39 @@ public class MallWhereService extends NotificationListenerService implements Goo
         Cursor c = getApplication().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
         c.moveToFirst();
         userDataRef.child("userinfo").child("name").setValue(c.getString(c.getColumnIndex("DISPLAY_NAME")));
-        Uri photoUri = Uri.parse(c.getString(c.getColumnIndex("PHOTO_THUMBNAIL_URI")));
+        Uri photoUri = Uri.parse(c.getString(c.getColumnIndex("PHOTO_URI")));
         Log.d(TAG, "photoUri: " + photoUri);
-        File photoFile = new File(photoUri.getPath());
 
-        AWSCredentials credential = new BasicAWSCredentials("AKIAIHAPH4VNZWPFWB2Q", "X9SorZOisWZNWOU0Nm+gC3m1+HQoZzZ6admZrIv3");
-        TransferManager manager = new TransferManager(credential);
-        Upload upload = manager.upload("takecharge", "profpic", photoFile);
-        UploadResult result = null;
+        InputStream input = ContactsContract.Contacts.openContactPhotoInputStream(getContentResolver(), ContactsContract.Profile.CONTENT_URI);
+
         try {
-            result = upload.waitForUploadResult();
+            final File file = new File(getCacheDir(), "profPic.png");
+            try {
+                try (OutputStream output = new FileOutputStream(file)) {
+                    final byte[] buffer = new byte[1024];
+                    int read;
+
+                    while ((read = input.read(buffer)) != -1)
+                        output.write(buffer, 0, read);
+
+                    output.flush();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            AWSCredentials credential = new BasicAWSCredentials("AKIAIHAPH4VNZWPFWB2Q", "X9SorZOisWZNWOU0Nm+gC3m1+HQoZzZ6admZrIv3");
+            TransferManager manager = new TransferManager(credential);
+            Upload upload = manager.upload("takecharge", getAndroidId() + ".png", file);
+            UploadResult result = upload.waitForUploadResult();
             Log.d(TAG, "result: " + result.getBucketName() + " " + result.getKey() + " " + result.getETag());
         } catch (InterruptedException e) {
             e.printStackTrace();
+        } finally {
+            try {
+                input.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
         c.close();
     }
