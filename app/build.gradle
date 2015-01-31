@@ -31,4 +31,5 @@ dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     compile 'com.firebase:firebase-client-android:2.1.2+'
     compile 'com.google.android.gms:play-services-location:6.5.+'
+    compile files('libs/aws-android-sdk-2.1.8-core.jar')
 }

