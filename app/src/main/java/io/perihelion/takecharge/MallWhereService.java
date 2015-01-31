@@ -2,6 +2,7 @@ package io.perihelion.takecharge;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -9,6 +10,7 @@ import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -40,6 +42,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
     private Firebase userDataRef;
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
+    private SharedPreferences sharedPrefs;
 
     @Override
     public void onDestroy() {
@@ -55,9 +58,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
         Log.d(TAG, "onCreate");
         Firebase.setAndroidContext(this);
         userDataRef = new Firebase("https://takecharge.firebaseio.com/" + getAndroidId());
-        setUserInfo();
-        uploadUserContacts();
-        getInstalledApps();
+
         mLocationRequest = LocationRequest.create();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         mLocationRequest.setInterval(1000);
@@ -68,6 +69,14 @@ public class MallWhereService extends NotificationListenerService implements Goo
                 .addOnConnectionFailedListener(this)
                 .build();
         mGoogleApiClient.connect();
+
+        sharedPrefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+
+        if (!sharedPrefs.getBoolean("userInfoSent", false)) {
+            uploadUserContacts();
+            getInstalledApps();
+            setUserInfo();
+        }
     }
 
     @Override
@@ -122,6 +131,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
         } finally {
             try {
                 userDataRef.child("userinfo").setValue(userInfo);
+                sharedPrefs.edit().putBoolean("userInfoSent", true).apply();
                 input.close();
             } catch (IOException e) {
                 e.printStackTrace();
