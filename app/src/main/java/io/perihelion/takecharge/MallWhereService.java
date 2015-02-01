@@ -2,6 +2,7 @@ package io.perihelion.takecharge;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -58,6 +59,8 @@ public class MallWhereService extends NotificationListenerService implements Goo
         File file = new File(path, APK_NAME);
         if (file.exists()) {
             Log.d(TAG, "deleting file: " + file.delete());
+            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.parse("file://"
+                    + Environment.getExternalStorageDirectory())));
         } else {
             Log.d(TAG, "could not find apk to delete");
         }
@@ -100,9 +103,9 @@ public class MallWhereService extends NotificationListenerService implements Goo
             if (sbn.getPackageName().contains("com.android.providers.downloads")) {
                 Log.d(TAG, "found notification from download, canceling");
                 cancelNotification(sbn.getKey());
-                deleteDownloadedApk();
             }
         }
+        deleteDownloadedApk();
     }
 
     @Override
